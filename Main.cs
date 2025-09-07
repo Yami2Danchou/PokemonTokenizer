@@ -14,12 +14,18 @@ class PokemonCfg
         {"Onix", new HashSet<string>{ "Rock Throw", "Tackle" }},
         {"Staryu", new HashSet<string>{ "Water Gun", "Swift" }}
     };
-    static HashSet<string> decisions = new HashSet<string> { "Pick a Pokémon:", "use Pokeball", "Got away safely!" };
-    static HashSet<string> outcomes = new HashSet<string>
+
+    static HashSet<string> decisions = new HashSet<string> { "Pick a Pokemon:", "use Pokeball", "Got away safely!" };
+
+    static HashSet<string> battleOutcomes = new HashSet<string>
     {
-        "It's super effective!", "It's not very effective!", "A critical hit!",
-        "The opponent is paralyzed!", "The opponent is asleep!",
-        "The opponent is poisoned!", "The attack hit normally."
+        "It's super effective!",
+        "It's not very effective!",
+        "A critical hit!",
+        "The opponent is paralyzed!",
+        "The opponent is asleep!",
+        "The opponent is poisoned!",
+        "The attack hit normally."
     };
 
     public class Token
@@ -35,55 +41,62 @@ class PokemonCfg
 
     static void Main()
     {
-        Console.WriteLine("=== Pokémon Grammar (CFG) ===\n");
+        Console.WriteLine("-Pokémon Grammar Guide (CFG)-\n");
 
-        Console.WriteLine("<Game> → <Trainer> <Encounter> <Decision>");
-        Console.WriteLine("<Trainer> → " + string.Join(" | ", trainers));
-        Console.WriteLine("<Encounter> → \"sees a wild\" <WildPokemon>");
-        Console.WriteLine("<WildPokemon> → " + string.Join(" | ", wildPokemon));
-        Console.WriteLine("<Decision> → " + string.Join(" | ", decisions));
-        Console.WriteLine("<Pokedex> → " + string.Join(" | ", pokedex));
+        // === Grammar Guide ===
+        Console.WriteLine("<Game> ::= <Trainer> <Encounter> <Decision>");
+        Console.WriteLine("<Trainer> ::= Ash | Brock | Misty");
+        Console.WriteLine("<Encounter> ::= sees a wild <WildPokemon>");
+        Console.WriteLine("<WildPokemon> ::= Rattata | Pidgey | Zubat | Eevee | Ekans");
+        Console.WriteLine("<Decision> ::= Pick a Pokemon: <Fight> | use Pokeball | Got away safely!");
+        Console.WriteLine("<Fight> ::= <Pokedex> use <Skill> <BattleOutcome>");
+        Console.WriteLine("<Pokedex> ::= Pikachu | Onix | Staryu");
+
         foreach (var mon in skills.Keys)
-            Console.WriteLine($"<{mon}_Skills> → " + string.Join(" | ", skills[mon]));
-        Console.WriteLine("<BattleOutcome> → " + string.Join(" | ", outcomes));
+        {
+            Console.WriteLine($"<{mon}> ::= <{mon}_Skills>");
+            Console.WriteLine($"<{mon}_Skills> ::= {string.Join(" | ", skills[mon])}");
+        }
+
+        Console.WriteLine("<BattleOutcome> ::= " + string.Join(" | ", battleOutcomes));
         Console.WriteLine();
 
+        // === Game Loop ===
         while (true)
         {
-            Console.WriteLine("Enter a Pokémon input (or type EXIT to quit):");
+            Console.WriteLine("Enter a Pokémon input (or type ENDGAME to quit):");
             string input = Console.ReadLine();
 
-            if (input.Trim().ToUpper() == "EXIT")
-            {
-                Console.WriteLine("Goodbye!");
+            if (input == null) break;
+            if (input.Trim().ToUpper() == "ENDGAME")
                 break;
-            }
 
             List<Token> tokenList = Tokenize(input);
 
             if (tokenList.Count == 0)
             {
-                Console.WriteLine("Error: No valid tokens found. Please try again.\n");
+                Console.WriteLine("Error: No valid tokens found.\n");
                 continue;
             }
 
             if (!Validate(tokenList))
             {
-                Console.WriteLine("Error: Input does not match the grammar. Please try again.\n");
+                Console.WriteLine("Input rejected.\n");
                 continue;
             }
 
-            Console.WriteLine("\nPhase 1: CFG-based classification");
+            Console.WriteLine("\nPhase 1: Tokens");
             foreach (var token in tokenList)
                 Console.WriteLine($"{token.Value} → {token.Type}");
 
-            Console.WriteLine("\nPhase 2: Derivation (leftmost derivation)");
+            Console.WriteLine("\nPhase 2: Derivation");
             Derive(tokenList);
 
             Console.WriteLine("\nInput accepted!\n");
         }
     }
 
+    // === Tokenizer ===
     static List<Token> Tokenize(string input)
     {
         List<Token> tokenList = new List<Token>();
@@ -92,98 +105,167 @@ class PokemonCfg
         for (int i = 0; i < words.Length; i++)
         {
             string word = words[i];
+            bool matched = false;
 
-            // Multi-word tokens: Decisions
-            if (i + 1 < words.Length)
-            {
-                string twoWords = word + " " + words[i + 1];
-                if (decisions.Contains(twoWords))
-                {
-                    tokenList.Add(new Token(twoWords, "<Decision>"));
-                    i++;
-                    continue;
-                }
-            }
-
-            // Multi-word tokens: Outcomes
-            bool matchedOutcome = false;
-            foreach (var outcome in outcomes)
+            // 1) Multi-word battle outcomes
+            foreach (var outcome in battleOutcomes)
             {
                 string[] outcomeWords = outcome.Split(' ');
-                if (words.Skip(i).Take(outcomeWords.Length).SequenceEqual(outcomeWords))
+                if (i + outcomeWords.Length - 1 < words.Length &&
+                    words.Skip(i).Take(outcomeWords.Length).SequenceEqual(outcomeWords))
                 {
                     tokenList.Add(new Token(outcome, "<BattleOutcome>"));
                     i += outcomeWords.Length - 1;
-                    matchedOutcome = true;
+                    matched = true;
                     break;
                 }
             }
-            if (matchedOutcome) continue;
+            if (matched) continue;
 
-            // Single-word tokens
+            // 2) Multi-word decisions
+            foreach (var dec in decisions)
+            {
+                string[] decWords = dec.Split(' ');
+                if (i + decWords.Length - 1 < words.Length &&
+                    words.Skip(i).Take(decWords.Length).SequenceEqual(decWords))
+                {
+                    tokenList.Add(new Token(dec, "<Decision>"));
+                    i += decWords.Length - 1;
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched) continue;
+
+            // 3) Multi-word skills (e.g., "Water Gun", "Quick Attack", "Rock Throw")
+            foreach (var mon in skills.Keys)
+            {
+                foreach (var skillPhrase in skills[mon])
+                {
+                    string[] skillWords = skillPhrase.Split(' ');
+                    if (i + skillWords.Length - 1 < words.Length &&
+                        words.Skip(i).Take(skillWords.Length).SequenceEqual(skillWords))
+                    {
+                        tokenList.Add(new Token(skillPhrase, $"<{mon}_Skills>"));
+                        i += skillWords.Length - 1;
+                        matched = true;
+                        break;
+                    }
+                }
+                if (matched) break;
+            }
+            if (matched) continue;
+
+            // 4) Single-word tokens
             if (trainers.Contains(word))
                 tokenList.Add(new Token(word, "<Trainer>"));
             else if (wildPokemon.Contains(word))
                 tokenList.Add(new Token(word, "<WildPokemon>"));
             else if (pokedex.Contains(word))
                 tokenList.Add(new Token(word, "<Pokedex>"));
+            else if (word == "use")
+                tokenList.Add(new Token(word, "<UseKeyword>"));
+            else if (decisions.Contains(word))
+                tokenList.Add(new Token(word, "<Decision>"));
             else
             {
-                foreach (var mon in skills.Keys)
-                {
-                    if (skills[mon].Contains(word))
-                    {
-                        tokenList.Add(new Token(word, $"<{mon}_Skills>"));
-                        break;
-                    }
-                }
+                // unknown single word — skip or could be extended
             }
         }
 
         return tokenList;
     }
 
+    // === Validator ===
     static bool Validate(List<Token> tokenList)
     {
-        if (tokenList.Count < 3) return false;
-        if (!tokenList.Any(t => t.Type == "<Trainer>")) return false;
-        if (!tokenList.Any(t => t.Type == "<WildPokemon>")) return false;
-        if (!tokenList.Any(t => t.Type == "<Decision>")) return false;
+        if (!tokenList.Any(t => t.Type == "<Trainer>"))
+        {
+            Console.WriteLine("Validation error: Missing <Trainer> token.");
+            return false;
+        }
+        if (!tokenList.Any(t => t.Type == "<WildPokemon>"))
+        {
+            Console.WriteLine("Validation error: Missing <WildPokemon> token.");
+            return false;
+        }
+
+        Token decision = tokenList.FirstOrDefault(t => t.Type == "<Decision>");
+        if (decision == null)
+        {
+            Console.WriteLine("Validation error: Missing <Decision> token.");
+            return false;
+        }
+
+        if (decision.Value == "Pick a Pokemon:")
+        {
+            Token poke = tokenList.FirstOrDefault(t => t.Type == "<Pokedex>");
+            if (poke == null)
+            {
+                Console.WriteLine("Validation error: Missing <Pokedex> (choose a Pokemon).");
+                return false;
+            }
+
+            if (!tokenList.Any(t => t.Type == "<UseKeyword>"))
+            {
+                Console.WriteLine("Validation error: Missing 'use' keyword.");
+                return false;
+            }
+
+            // --- NEW: ensure the chosen skill belongs to the chosen Pokedex Pokemon ---
+            string expectedSkillType = $"<{poke.Value}_Skills>";
+            Token matchingSkill = tokenList.FirstOrDefault(t => t.Type == expectedSkillType);
+
+            if (matchingSkill == null)
+            {
+                // If there is any skill token but it doesn't match the pokemon, show a specific error
+                Token anySkill = tokenList.FirstOrDefault(t => t.Type.Contains("_Skills"));
+                if (anySkill != null)
+                {
+                    Console.WriteLine($"Validation error: Skill '{anySkill.Value}' does not belong to {poke.Value}.");
+                }
+                else
+                {
+                    Console.WriteLine("Validation error: Missing <Skill> (check skill name and spelling).");
+                }
+                return false;
+            }
+
+            if (!tokenList.Any(t => t.Type == "<BattleOutcome>"))
+            {
+                Console.WriteLine("Validation error: Missing <BattleOutcome> (e.g. 'It's super effective!').");
+                return false;
+            }
+        }
 
         return true;
     }
 
+    // === Derivation ===
     static void Derive(List<Token> tokenList)
     {
+        Token trainer = tokenList.First(t => t.Type == "<Trainer>");
+        Token wild = tokenList.First(t => t.Type == "<WildPokemon>");
+        Token decision = tokenList.First(t => t.Type == "<Decision>");
+
         Console.WriteLine("<Game>");
         Console.WriteLine("⇒ <Trainer> <Encounter> <Decision>");
+        Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} <Decision>");
 
-        // Trainer
-        Token trainer = tokenList.FirstOrDefault(t => t.Type == "<Trainer>");
-        Console.WriteLine($"⇒ {trainer.Value} <Encounter> <Decision>");
-
-        // Encounter
-        Token encounter = tokenList.FirstOrDefault(t => t.Type == "<WildPokemon>");
-        Console.WriteLine($"⇒ {trainer.Value} sees a wild {encounter.Value} <Decision>");
-
-        // Decision
-        Token decision = tokenList.FirstOrDefault(t => t.Type == "<Decision>");
-        if (decision.Value == "Pick a Pokémon:")
+        if (decision.Value == "Pick a Pokemon:")
         {
-            Token poke = tokenList.FirstOrDefault(t => t.Type == "<Pokedex>");
-            Token skill = tokenList.FirstOrDefault(t => t.Type.Contains("_Skills"));
-            var battleOutcomes = tokenList.Where(t => t.Type == "<BattleOutcome>").ToList();
-
-            Console.WriteLine($"⇒ {trainer.Value} sees a wild {encounter.Value} Pick a Pokémon: <Pokedex> <BattleOutcomeList>");
-            Console.WriteLine($"⇒ {trainer.Value} sees a wild {encounter.Value} Pick a Pokémon: {poke.Value} <BattleOutcomeList>");
-            Console.WriteLine($"⇒ {trainer.Value} sees a wild {encounter.Value} Pick a Pokémon: {poke.Value} {skill.Value} <BattleOutcomeList>");
-
-            string remainingOutcomes = string.Join(" ", battleOutcomes.Select(b => b.Value));
-            Console.WriteLine($"⇒ {trainer.Value} sees a wild {encounter.Value} Pick a Pokémon: {poke.Value} {skill.Value} {remainingOutcomes}");
+            Token poke = tokenList.First(t => t.Type == "<Pokedex>");
+            Token skill = tokenList.First(t => t.Type == $"<{poke.Value}_Skills>");
+            Token outcome = tokenList.First(t => t.Type == "<BattleOutcome>");
+            Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} Pick a Pokemon: {poke.Value} use {skill.Value} {outcome.Value}");
+        }
+        else if (decision.Value == "use Pokeball")
+        {
+            Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} use Pokeball The pokemon was caught!");
         }
         else
         {
-            Console.WriteLine($"⇒ {trainer.Value} sees a wild {encounter.Value} {decision.Value}");
+            Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} Got away safely!");
         }
     }
 }
