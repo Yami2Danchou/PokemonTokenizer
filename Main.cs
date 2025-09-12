@@ -111,7 +111,7 @@ class PokemonCfg
         }
     }
 
-  // === Tokenizer ===
+// === Tokenizer ===
 static List<Token> Tokenize(string input)
 {
     List<Token> tokenList = new List<Token>();
@@ -133,7 +133,7 @@ static List<Token> Tokenize(string input)
             }
         }
 
-        // 2. Check for multi-word Decisions (any length, not just 2 words)
+        // 2. Check for multi-word Decisions
         foreach (var decision in decisions)
         {
             string[] decisionWords = decision.Split(' ');
@@ -145,7 +145,22 @@ static List<Token> Tokenize(string input)
             }
         }
 
-        // 3. Match single-word tokens
+        // 3. Check for multi-word Pokémon Skills
+        foreach (var mon in skills.Keys)
+        {
+            foreach (var skill in skills[mon])
+            {
+                string[] skillWords = skill.Split(' ');
+                if (words.Skip(i).Take(skillWords.Length).SequenceEqual(skillWords))
+                {
+                    tokenList.Add(new Token(skill, $"<{mon}_Skills>"));
+                    i += skillWords.Length - 1;
+                    goto nextWord;
+                }
+            }
+        }
+
+        // 4. Match single-word tokens
         if (trainers.Contains(word))
             tokenList.Add(new Token(word, "<Trainer>"));
         else if (wildPokemon.Contains(word))
@@ -154,24 +169,13 @@ static List<Token> Tokenize(string input)
             tokenList.Add(new Token(word, "<Pokedex>"));
         else if (word == "use")
             tokenList.Add(new Token(word, "<UseKeyword>"));
-        else
-        {
-            // 4. Check if word is a valid Pokémon skill
-            foreach (var mon in skills.Keys)
-            {
-                if (skills[mon].Contains(word))
-                {
-                    tokenList.Add(new Token(word, $"<{mon}_Skills>"));
-                    break;
-                }
-            }
-        }
 
         nextWord: ;
     }
 
     return tokenList;
 }
+
 
 
    // === Validator ===
@@ -218,13 +222,27 @@ static bool Validate(List<Token> tokenList)
             return false;
         }
 
-        // Extra check: ensure chosen skill matches the chosen Pokémon
-        string pokeName = poke.Value;
-        if (!skills.ContainsKey(pokeName) || !skills[pokeName].Contains(skill.Value))
-        {
-            Console.WriteLine($"Validation error: Skill '{skill.Value}' does not belong to {pokeName}.");
-            return false;
-        }
+      // Extra check: ensure chosen skill matches the chosen Pokémon
+string pokeName = poke.Value;
+
+// Count how many skill tokens appear
+var skillTokens = tokenList.Where(t => t.Type.Contains("_Skills")).ToList();
+
+// Must be exactly ONE skill
+if (skillTokens.Count != 1)
+{
+    Console.WriteLine("Validation error: Fight must include exactly ONE valid skill.");
+    return false;
+}
+
+// Check if that skill belongs to the chosen Pokémon
+string skillUsed = skillTokens.First().Value;
+if (!skills.ContainsKey(pokeName) || !skills[pokeName].Contains(skillUsed))
+{
+    Console.WriteLine($"Validation error: Skill '{skillUsed}' does not belong to {pokeName}.");
+    return false;
+}
+
     }
 
     return true;
