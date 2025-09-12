@@ -49,6 +49,7 @@ class PokemonCfg
             Type = type;
         }
     }
+    
 
     static void Main()
     {
@@ -249,35 +250,43 @@ if (!skills.ContainsKey(pokeName) || !skills[pokeName].Contains(skillUsed))
 }
 
 
-    // === Derivation ===
-    // Shows how the input reduces from <Game> to final sentence
-    static void Derive(List<Token> tokenList)
+// === Derivation ===
+// Shows how the input reduces from <Game> to final sentence step by step
+static void Derive(List<Token> tokenList)
+{
+    Token trainer = tokenList.First(t => t.Type == "<Trainer>");
+    Token wild = tokenList.First(t => t.Type == "<WildPokemon>");
+    Token decision = tokenList.First(t => t.Type == "<Decision>");
+
+    Console.WriteLine("<Game>");
+    Console.WriteLine("⇒ <Trainer> sees a wild <WildPokemon> <Decision>");
+    Console.WriteLine($"⇒ {trainer.Value} sees a wild <WildPokemon> <Decision>");
+    Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} <Decision>");
+
+    // Case 1: Battle
+    if (decision.Value == "Pick a Pokemon:")
     {
-        Token trainer = tokenList.First(t => t.Type == "<Trainer>");
-        Token wild = tokenList.First(t => t.Type == "<WildPokemon>");
-        Token decision = tokenList.First(t => t.Type == "<Decision>");
+        Token poke = tokenList.First(t => t.Type == "<Pokedex>");
+        Token skill = tokenList.First(t => t.Type.Contains("_Skills"));
+        Token outcome = tokenList.First(t => t.Type == "<BattleOutcome>");
 
-        Console.WriteLine("<Game>");
-        Console.WriteLine("⇒ <Trainer> sees a wild <WildPokemon> <Decision>");
-        Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} <Decision>");
-
-        // Case 1: Battle
-        if (decision.Value == "Pick a Pokemon:")
-        {
-            Token poke = tokenList.First(t => t.Type == "<Pokedex>");
-            Token skill = tokenList.First(t => t.Type.Contains("_Skills"));
-            Token outcome = tokenList.First(t => t.Type == "<BattleOutcome>");
-            Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} Pick a Pokemon: {poke.Value} use {skill.Value} {outcome.Value}");
-        }
-        // Case 2: Pokéball
-        else if (decision.Value == "use Pokeball")
-        {
-            Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} use Pokeball The pokemon was caught!");
-        }
-        // Case 3: Run away
-        else
-        {
-            Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} Got away safely!");
-        }
+        Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} Pick a Pokemon: <Fight>");
+        Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} Pick a Pokemon: <Pokedex> use <Skill> <BattleOutcome>");
+        Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} Pick a Pokemon: {poke.Value} use <Skill> <BattleOutcome>");
+        Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} Pick a Pokemon: {poke.Value} use {skill.Value} <BattleOutcome>");
+        Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} Pick a Pokemon: {poke.Value} use {skill.Value} {outcome.Value}");
     }
+    // Case 2: Pokéball
+    else if (decision.Value == "use Pokeball")
+    {
+        Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} use Pokeball");
+        Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} use Pokeball The pokemon was caught!");
+    }
+    // Case 3: Run away
+    else if (decision.Value == "Got away safely!")
+    {
+        Console.WriteLine($"⇒ {trainer.Value} sees a wild {wild.Value} Got away safely!");
+    }
+}
+
 }
